@@ -1,0 +1,1521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ATM Management System</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+/* ══════════════════════════════════════════════════
+   DESIGN SYSTEM
+══════════════════════════════════════════════════ */
+:root {
+  --bg:          #04070f;
+  --surface:     #080d18;
+  --card:        #0c1220;
+  --card2:       #101828;
+  --border:      #1c2a3a;
+  --border2:     #243040;
+  --cyan:        #00e5ff;
+  --cyan-glow:   rgba(0,229,255,0.12);
+  --cyan-border: rgba(0,229,255,0.3);
+  --amber:       #ffb700;
+  --amber-glow:  rgba(255,183,0,0.12);
+  --red:         #ff3d57;
+  --red-glow:    rgba(255,61,87,0.12);
+  --green:       #00e676;
+  --green-glow:  rgba(0,230,118,0.1);
+  --text:        #c8d8e8;
+  --text-dim:    #5a7a9a;
+  --white:       #e8f4ff;
+  --mono:        'Share Tech Mono', monospace;
+  --display:     'Orbitron', monospace;
+  --body:        'Rajdhani', sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 15px;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Grid noise texture overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    repeating-linear-gradient(0deg,   transparent, transparent 39px, rgba(0,229,255,0.025) 39px, rgba(0,229,255,0.025) 40px),
+    repeating-linear-gradient(90deg,  transparent, transparent 39px, rgba(0,229,255,0.025) 39px, rgba(0,229,255,0.025) 40px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── ANIMATIONS ── */
+@keyframes scanline {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+@keyframes blink   { 0%,100%{opacity:1} 50%{opacity:0} }
+@keyframes pulse   { 0%,100%{opacity:1} 50%{opacity:.4} }
+@keyframes fadeUp  { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+@keyframes slideIn { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:translateX(0)} }
+@keyframes glow    { 0%,100%{box-shadow:0 0 20px var(--cyan-glow)} 50%{box-shadow:0 0 40px rgba(0,229,255,0.2)} }
+
+.scanline {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(transparent, rgba(0,229,255,0.05), transparent);
+  animation: scanline 8s linear infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ══ LAYOUT ══════════════════════════════════════ */
+.wrapper {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-rows: 52px 1fr;
+  min-height: 100vh;
+}
+
+/* TOP BAR */
+.topbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.topbar-logo {
+  font-family: var(--display);
+  font-size: .72rem;
+  font-weight: 700;
+  color: var(--cyan);
+  letter-spacing: 3px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.topbar-logo::before {
+  content: '';
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--cyan);
+  box-shadow: 0 0 12px var(--cyan);
+  animation: pulse 2s infinite;
+}
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  font-family: var(--mono);
+  font-size: .65rem;
+  color: var(--text-dim);
+}
+#topbar-user { color: var(--cyan); }
+#clock { color: var(--amber); }
+
+/* MAIN AREA */
+.main {
+  display: grid;
+  grid-template-columns: 1fr 420px 1fr;
+  gap: 0;
+}
+
+/* ── SIDE PANELS ── */
+.side-panel {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 52px);
+  overflow: hidden;
+}
+.side-panel:last-child { border-right: none; border-left: 1px solid var(--border); }
+
+.panel-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--display);
+  font-size: .6rem;
+  letter-spacing: 2.5px;
+  color: var(--text-dim);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+.panel-badge {
+  background: var(--cyan-glow);
+  border: 1px solid var(--cyan-border);
+  color: var(--cyan);
+  padding: 2px 10px;
+  border-radius: 100px;
+  font-size: .58rem;
+  font-family: var(--mono);
+}
+.panel-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+.panel-scroll::-webkit-scrollbar { width: 3px; }
+.panel-scroll::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* ── ATM CENTER COLUMN ── */
+.atm-col {
+  display: flex;
+  flex-direction: column;
+  background: radial-gradient(ellipse at 50% 40%, #071020 0%, var(--bg) 70%);
+  align-items: center;
+  justify-content: flex-start;
+  padding: 28px 20px 20px;
+  gap: 0;
+}
+
+/* ATM BODY */
+.atm-body {
+  width: 100%;
+  max-width: 380px;
+  background: var(--card);
+  border: 1px solid var(--border2);
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px rgba(0,229,255,0.05),
+    0 8px 40px rgba(0,0,0,0.6),
+    0 0 80px rgba(0,229,255,0.04);
+  animation: glow 4s ease-in-out infinite;
+}
+
+/* ATM HEADER */
+.atm-header {
+  background: linear-gradient(180deg, #0a1828, var(--card));
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.atm-brand {
+  font-family: var(--display);
+  font-size: .85rem;
+  font-weight: 900;
+  color: var(--cyan);
+  letter-spacing: 4px;
+}
+.atm-chip {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.chip-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+}
+.chip-dot.on  { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 2s infinite; }
+.chip-dot.mid { background: var(--amber); box-shadow: 0 0 8px var(--amber); animation: pulse 2.5s infinite; }
+
+/* CARD SLOT */
+.card-slot {
+  height: 5px;
+  background: var(--bg);
+  margin: 0 20px 0;
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+.card-slot-beam {
+  position: absolute;
+  left: -100%; top: 0;
+  width: 60%; height: 100%;
+  background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+  animation: cardBeam 5s ease-in-out infinite;
+}
+@keyframes cardBeam { 0%,100%{left:-60%} 50%{left:100%} }
+
+/* SCREEN */
+.atm-screen {
+  background: #040b12;
+  margin: 14px;
+  border-radius: 10px;
+  border: 1px solid #152030;
+  min-height: 310px;
+  padding: 22px 20px 18px;
+  position: relative;
+  overflow: hidden;
+}
+.atm-screen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(0deg,
+    transparent, transparent 3px,
+    rgba(0,229,255,0.012) 3px, rgba(0,229,255,0.012) 4px
+  );
+  pointer-events: none;
+}
+
+/* SCREEN SECTIONS */
+.screen-section { display: none; animation: fadeUp .3s ease; }
+.screen-section.active { display: block; }
+
+.screen-title {
+  font-family: var(--display);
+  font-size: .6rem;
+  color: var(--cyan);
+  letter-spacing: 3px;
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.screen-title::before {
+  content: '';
+  width: 3px; height: 14px;
+  background: var(--cyan);
+  border-radius: 2px;
+  box-shadow: 0 0 8px var(--cyan);
+}
+
+/* INPUTS */
+.field { margin-bottom: 14px; }
+.field-label {
+  font-family: var(--mono);
+  font-size: .62rem;
+  color: var(--text-dim);
+  letter-spacing: 1.5px;
+  margin-bottom: 6px;
+}
+.field-input {
+  width: 100%;
+  background: #060f1a;
+  border: 1px solid var(--border2);
+  color: var(--cyan);
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-family: var(--mono);
+  font-size: .88rem;
+  outline: none;
+  transition: border-color .2s, box-shadow .2s;
+  letter-spacing: 1px;
+}
+.field-input::placeholder { color: #1a3050; }
+.field-input:focus {
+  border-color: var(--cyan);
+  box-shadow: 0 0 16px rgba(0,229,255,0.1);
+}
+.field-input[type="password"] { letter-spacing: 4px; }
+
+/* BUTTONS */
+.btn {
+  width: 100%;
+  padding: 11px 16px;
+  border: none;
+  border-radius: 8px;
+  font-family: var(--display);
+  font-size: .62rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  cursor: pointer;
+  transition: all .2s;
+  margin-top: 6px;
+  position: relative;
+  overflow: hidden;
+}
+.btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.05), transparent);
+}
+.btn-primary {
+  background: var(--cyan);
+  color: var(--bg);
+}
+.btn-primary:hover { filter: brightness(1.1); box-shadow: 0 0 24px rgba(0,229,255,0.3); transform: translateY(-1px); }
+.btn-secondary {
+  background: transparent;
+  border: 1px solid var(--border2);
+  color: var(--text-dim);
+}
+.btn-secondary:hover { border-color: var(--cyan); color: var(--cyan); background: var(--cyan-glow); }
+.btn-danger { background: var(--red); color: white; }
+.btn-danger:hover { filter: brightness(1.1); box-shadow: 0 0 20px var(--red-glow); }
+.btn:active { transform: scale(.98); }
+
+/* QUICK AMOUNTS */
+.quick-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.quick-btn {
+  background: #060f1a;
+  border: 1px solid var(--border2);
+  color: var(--text-dim);
+  padding: 8px 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: .65rem;
+  text-align: center;
+  transition: all .15s;
+}
+.quick-btn:hover {
+  border-color: var(--cyan);
+  color: var(--cyan);
+  background: var(--cyan-glow);
+}
+
+/* MENU GRID */
+.menu-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.menu-card {
+  background: #060f1a;
+  border: 1px solid var(--border2);
+  border-radius: 10px;
+  padding: 16px 12px 14px;
+  cursor: pointer;
+  text-align: center;
+  transition: all .2s;
+}
+.menu-card:hover {
+  border-color: var(--cyan);
+  background: var(--cyan-glow);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(0,229,255,0.1);
+}
+.menu-card .mc-icon { font-size: 1.6rem; display: block; margin-bottom: 6px; }
+.menu-card .mc-label {
+  font-family: var(--mono);
+  font-size: .68rem;
+  color: var(--text);
+  letter-spacing: 1px;
+}
+.menu-card:hover .mc-label { color: var(--cyan); }
+
+/* BALANCE DISPLAY */
+.balance-box {
+  background: #060f1a;
+  border: 1px solid var(--cyan-border);
+  border-radius: 12px;
+  padding: 22px;
+  text-align: center;
+  margin: 10px 0;
+  box-shadow: 0 0 30px rgba(0,229,255,0.06);
+}
+.balance-label {
+  font-family: var(--mono);
+  font-size: .6rem;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+  margin-bottom: 10px;
+}
+.balance-amount {
+  font-family: var(--display);
+  font-size: 1.9rem;
+  font-weight: 900;
+  color: var(--cyan);
+  letter-spacing: 2px;
+}
+.balance-type {
+  font-family: var(--mono);
+  font-size: .62rem;
+  color: var(--text-dim);
+  margin-top: 8px;
+  letter-spacing: 1px;
+}
+
+/* MESSAGE BOX */
+.msg {
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin: 10px 0;
+  font-family: var(--mono);
+  font-size: .72rem;
+  text-align: center;
+  animation: fadeUp .25s ease;
+}
+.msg-success { background: var(--green-glow); color: var(--green); border: 1px solid rgba(0,230,118,.3); }
+.msg-error   { background: var(--red-glow);   color: var(--red);   border: 1px solid rgba(255,61,87,.3); }
+.msg-info    { background: var(--amber-glow);  color: var(--amber); border: 1px solid rgba(255,183,0,.3); }
+
+/* BACK LINK */
+.back-link {
+  display: block;
+  text-align: center;
+  margin-top: 14px;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: .65rem;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: color .2s;
+}
+.back-link:hover { color: var(--cyan); }
+
+/* HINT */
+.hint {
+  font-family: var(--mono);
+  font-size: .6rem;
+  color: var(--text-dim);
+  text-align: center;
+  margin-top: 8px;
+}
+.hint span { color: var(--cyan); }
+
+/* USER BAR (bottom of ATM) */
+.user-bar {
+  border-top: 1px solid var(--border);
+  padding: 10px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: .65rem;
+  color: var(--text-dim);
+  display: none;
+}
+.user-bar.show { display: flex; }
+.user-name { color: var(--cyan); }
+.user-bal  { color: var(--green); }
+.logout-btn { color: var(--red); cursor: pointer; }
+.logout-btn:hover { text-decoration: underline; }
+
+/* ══ LEFT PANEL: SQL LOG ══════════════════════════ */
+.sql-entry {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  animation: slideIn .3s ease;
+  font-family: var(--mono);
+  font-size: .65rem;
+}
+.sql-op-badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 4px;
+  font-size: .58rem;
+  letter-spacing: 1.5px;
+  margin-bottom: 7px;
+  font-weight: bold;
+}
+.op-SELECT   { background: #0d1f3a; color: #4da8ff; }
+.op-INSERT   { background: #0d2a1a; color: var(--green); }
+.op-UPDATE   { background: #2a1e08; color: var(--amber); }
+.op-BEGIN    { background: #1a1030; color: #aa88ff; }
+.op-COMMIT   { background: #0a2018; color: var(--green); }
+.op-ROLLBACK { background: #2a0a0a; color: var(--red); }
+
+.sql-code-block {
+  background: #02070f;
+  border: 1px solid #0e1e2e;
+  border-radius: 6px;
+  padding: 9px 12px;
+  color: #4a7a6a;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: .63rem;
+}
+.sql-result {
+  margin-top: 6px;
+  font-size: .62rem;
+  padding-left: 4px;
+}
+.sql-result.ok  { color: var(--green); }
+.sql-result.err { color: var(--red); }
+.sql-result.inf { color: var(--text-dim); }
+
+.sql-placeholder {
+  text-align: center;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: .7rem;
+  padding: 40px 10px;
+  line-height: 2;
+}
+
+/* ══ RIGHT PANEL: LEDGER ═════════════════════════ */
+.stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.stat-box {
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 10px;
+  text-align: center;
+}
+.stat-value {
+  font-family: var(--display);
+  font-size: .9rem;
+  font-weight: 700;
+  color: var(--cyan);
+}
+.stat-label {
+  font-family: var(--mono);
+  font-size: .57rem;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+  margin-top: 4px;
+}
+
+.txn-card {
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  animation: fadeUp .3s ease;
+}
+.txn-left .txn-type {
+  font-family: var(--mono);
+  font-size: .65rem;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-dim);
+}
+.txn-left .txn-meta {
+  font-family: var(--mono);
+  font-size: .6rem;
+  color: #2a4a6a;
+  margin-top: 3px;
+}
+.txn-left .txn-status {
+  font-family: var(--mono);
+  font-size: .58rem;
+  color: var(--green);
+  margin-top: 3px;
+}
+.txn-right .txn-amount {
+  font-family: var(--display);
+  font-size: .82rem;
+  font-weight: 700;
+  text-align: right;
+}
+.txn-right .txn-balance {
+  font-family: var(--mono);
+  font-size: .6rem;
+  color: var(--text-dim);
+  text-align: right;
+  margin-top: 4px;
+}
+.amt-cr { color: var(--green); }
+.amt-dr { color: var(--red); }
+
+.ledger-placeholder {
+  text-align: center;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: .7rem;
+  padding: 40px 10px;
+  line-height: 2;
+}
+
+/* HISTORY LIST inside ATM screen */
+.hist-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 9px 10px;
+  background: #060f1a;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  margin-bottom: 7px;
+  font-family: var(--mono);
+  font-size: .65rem;
+  animation: slideIn .3s ease;
+}
+.hist-type { color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
+.hist-date { font-size: .58rem; color: #1a3050; margin-top: 2px; }
+.hist-amt  { font-weight: bold; }
+
+/* STEP GUIDE (below ATM) */
+.step-guide {
+  margin-top: 18px;
+  width: 100%;
+  max-width: 380px;
+}
+.step-guide-title {
+  font-family: var(--display);
+  font-size: .58rem;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+  margin-bottom: 10px;
+  text-align: center;
+}
+.step-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  font-size: .8rem;
+}
+.step-num {
+  font-family: var(--display);
+  font-size: .6rem;
+  color: var(--cyan);
+  background: var(--cyan-glow);
+  border: 1px solid var(--cyan-border);
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.step-text { color: var(--text); font-family: var(--body); line-height: 1.4; }
+.step-text code {
+  font-family: var(--mono);
+  font-size: .7rem;
+  color: var(--cyan);
+  background: var(--cyan-glow);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+/* Bottom status bar */
+.status-bar {
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 8px 28px;
+  display: flex;
+  gap: 28px;
+  font-family: var(--mono);
+  font-size: .6rem;
+  color: var(--text-dim);
+  position: sticky;
+  bottom: 0;
+  z-index: 50;
+}
+.status-item { display: flex; align-items: center; gap: 5px; }
+.dot-ok   { color: var(--green); animation: pulse 2s infinite; }
+.dot-warn { color: var(--amber); animation: pulse 3s infinite; }
+
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="scanline"></div>
+
+<div class="wrapper">
+
+  <!-- ══ TOP BAR ══ -->
+  <div class="topbar">
+    <div class="topbar-logo">⬡ ATM MANAGEMENT SYSTEM</div>
+    <div class="topbar-right">
+      <span id="topbar-user" style="display:none"></span>
+      <span>ATM-001 · MAIN BRANCH</span>
+      <span id="clock"></span>
+    </div>
+  </div>
+
+  <!-- ══ MAIN ══ -->
+  <div class="main">
+
+    <!-- ═══ LEFT: SQL LOG ═══ -->
+    <div class="side-panel">
+      <div class="panel-header">
+        SQL ACTIVITY LOG
+        <span class="panel-badge" id="sql-count">0 QUERIES</span>
+      </div>
+      <div class="panel-scroll" id="sql-log">
+        <div class="sql-placeholder">
+          ◈ Awaiting database activity…<br><br>
+          Real-time SQL queries will appear<br>
+          here as you use the ATM terminal.
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ CENTER: ATM MACHINE ═══ -->
+    <div class="atm-col">
+      <div class="atm-body">
+
+        <!-- Header -->
+        <div class="atm-header">
+          <div class="atm-brand">SECUREATM</div>
+          <div class="atm-chip">
+            <div class="chip-dot on"></div>
+            <div class="chip-dot mid"></div>
+          </div>
+        </div>
+
+        <!-- Card slot -->
+        <div class="card-slot"><div class="card-slot-beam"></div></div>
+
+        <!-- SCREEN -->
+        <div class="atm-screen">
+
+          <!-- LOGIN -->
+          <div class="screen-section active" id="s-login">
+            <div class="screen-title">AUTHENTICATE</div>
+            <div class="field">
+              <div class="field-label">ACCOUNT NUMBER</div>
+              <input class="field-input" id="inp-acc" type="text" maxlength="16" placeholder="16-digit account number" autocomplete="off">
+            </div>
+            <div class="field">
+              <div class="field-label">PIN</div>
+              <input class="field-input" id="inp-pin" type="password" maxlength="6" placeholder="● ● ● ●">
+            </div>
+            <button class="btn btn-primary" onclick="doLogin()">AUTHENTICATE →</button>
+            <div id="msg-login"></div>
+            <div class="hint" style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px;">
+              Test: <span>1234567890123456</span> / PIN <span>1234</span>
+            </div>
+          </div>
+
+          <!-- MENU -->
+          <div class="screen-section" id="s-menu">
+            <div class="screen-title">SELECT SERVICE</div>
+            <div class="menu-grid">
+              <div class="menu-card" onclick="show('balance')">
+                <span class="mc-icon">💰</span>
+                <div class="mc-label">BALANCE</div>
+              </div>
+              <div class="menu-card" onclick="show('withdraw')">
+                <span class="mc-icon">💵</span>
+                <div class="mc-label">WITHDRAW</div>
+              </div>
+              <div class="menu-card" onclick="show('deposit')">
+                <span class="mc-icon">📥</span>
+                <div class="mc-label">DEPOSIT</div>
+              </div>
+              <div class="menu-card" onclick="show('transfer')">
+                <span class="mc-icon">🔄</span>
+                <div class="mc-label">TRANSFER</div>
+              </div>
+              <div class="menu-card" onclick="show('history')">
+                <span class="mc-icon">📋</span>
+                <div class="mc-label">HISTORY</div>
+              </div>
+              <div class="menu-card" onclick="show('pin')">
+                <span class="mc-icon">🔐</span>
+                <div class="mc-label">CHANGE PIN</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- BALANCE -->
+          <div class="screen-section" id="s-balance">
+            <div class="screen-title">BALANCE ENQUIRY</div>
+            <div class="balance-box">
+              <div class="balance-label">AVAILABLE BALANCE</div>
+              <div class="balance-amount" id="bal-amount">—</div>
+              <div class="balance-type"  id="bal-type">—</div>
+            </div>
+            <div class="hint" id="bal-accno"></div>
+            <a class="back-link" onclick="show('menu')">← BACK TO MENU</a>
+          </div>
+
+          <!-- WITHDRAW -->
+          <div class="screen-section" id="s-withdraw">
+            <div class="screen-title">CASH WITHDRAWAL</div>
+            <div class="quick-grid">
+              <div class="quick-btn" onclick="setVal('wd-amt',500)">₹500</div>
+              <div class="quick-btn" onclick="setVal('wd-amt',1000)">₹1K</div>
+              <div class="quick-btn" onclick="setVal('wd-amt',2000)">₹2K</div>
+              <div class="quick-btn" onclick="setVal('wd-amt',5000)">₹5K</div>
+            </div>
+            <div class="field">
+              <div class="field-label">AMOUNT (MAX ₹20,000)</div>
+              <input class="field-input" id="wd-amt" type="number" placeholder="Enter amount">
+            </div>
+            <button class="btn btn-primary" onclick="doWithdraw()">WITHDRAW CASH</button>
+            <div id="msg-wd"></div>
+            <a class="back-link" onclick="show('menu')">← BACK TO MENU</a>
+          </div>
+
+          <!-- DEPOSIT -->
+          <div class="screen-section" id="s-deposit">
+            <div class="screen-title">CASH DEPOSIT</div>
+            <div class="field">
+              <div class="field-label">AMOUNT TO DEPOSIT</div>
+              <input class="field-input" id="dep-amt" type="number" placeholder="Enter amount">
+            </div>
+            <button class="btn btn-primary" onclick="doDeposit()">DEPOSIT CASH</button>
+            <div id="msg-dep"></div>
+            <a class="back-link" onclick="show('menu')">← BACK TO MENU</a>
+          </div>
+
+          <!-- TRANSFER -->
+          <div class="screen-section" id="s-transfer">
+            <div class="screen-title">FUND TRANSFER</div>
+            <div class="field">
+              <div class="field-label">RECIPIENT ACCOUNT NUMBER</div>
+              <input class="field-input" id="tr-to" type="text" maxlength="16" placeholder="16-digit account number">
+            </div>
+            <div class="field">
+              <div class="field-label">TRANSFER AMOUNT</div>
+              <input class="field-input" id="tr-amt" type="number" placeholder="Enter amount">
+            </div>
+            <button class="btn btn-primary" onclick="doTransfer()">TRANSFER FUNDS</button>
+            <div id="msg-tr"></div>
+            <div class="hint">Try transferring to: <span>2345678901234567</span></div>
+            <a class="back-link" onclick="show('menu')">← BACK TO MENU</a>
+          </div>
+
+          <!-- HISTORY -->
+          <div class="screen-section" id="s-history">
+            <div class="screen-title">TRANSACTION HISTORY</div>
+            <div id="hist-list" style="max-height:230px;overflow-y:auto;"></div>
+            <a class="back-link" onclick="show('menu')">← BACK TO MENU</a>
+          </div>
+
+          <!-- CHANGE PIN -->
+          <div class="screen-section" id="s-pin">
+            <div class="screen-title">CHANGE PIN</div>
+            <div class="field">
+              <div class="field-label">CURRENT PIN</div>
+              <input class="field-input" id="pin-old" type="password" placeholder="Current PIN" maxlength="6">
+            </div>
+            <div class="field">
+              <div class="field-label">NEW PIN (4–6 DIGITS)</div>
+              <input class="field-input" id="pin-new" type="password" placeholder="New PIN" maxlength="6">
+            </div>
+            <button class="btn btn-primary" onclick="doChangePin()">UPDATE PIN</button>
+            <div id="msg-pin"></div>
+            <a class="back-link" onclick="show('menu')">← BACK TO MENU</a>
+          </div>
+
+        </div><!-- /atm-screen -->
+
+        <!-- USER BAR -->
+        <div class="user-bar" id="user-bar">
+          <span>USER: <span class="user-name" id="ub-name"></span></span>
+          <span class="user-bal" id="ub-bal"></span>
+          <span class="logout-btn" onclick="doLogout()">EJECT ×</span>
+        </div>
+
+      </div><!-- /atm-body -->
+
+      <!-- STEP GUIDE -->
+      <div class="step-guide">
+        <div class="step-guide-title">REAL SETUP GUIDE</div>
+        <div class="step-row"><div class="step-num">1</div><div class="step-text">Run <code>database.sql</code> in MySQL Workbench — creates all 5 tables + sample data</div></div>
+        <div class="step-row"><div class="step-num">2</div><div class="step-text">Run <code>npm install express mysql2 cors dotenv jsonwebtoken</code> in your project folder</div></div>
+        <div class="step-row"><div class="step-num">3</div><div class="step-text">Create <code>.env</code> with DB_HOST, DB_USER, DB_PASS, DB_NAME, JWT_SECRET</div></div>
+        <div class="step-row"><div class="step-num">4</div><div class="step-text">Run <code>node server.js</code> → server starts at <code>localhost:3001</code></div></div>
+        <div class="step-row"><div class="step-num">5</div><div class="step-text">Place <code>index.html</code> in <code>/public</code> folder — open browser at <code>localhost:3001</code></div></div>
+      </div>
+
+    </div><!-- /atm-col -->
+
+    <!-- ═══ RIGHT: TRANSACTION LEDGER ═══ -->
+    <div class="side-panel">
+      <div class="panel-header">
+        LIVE TRANSACTION LEDGER
+        <span class="panel-badge" id="txn-count">0 TXN</span>
+      </div>
+      <div class="panel-scroll">
+        <div class="stat-grid">
+          <div class="stat-box"><div class="stat-value" id="s-total">0</div><div class="stat-label">TOTAL TXN</div></div>
+          <div class="stat-box"><div class="stat-value" id="s-vol">₹0</div><div class="stat-label">VOLUME</div></div>
+          <div class="stat-box"><div class="stat-value" id="s-dep">₹0</div><div class="stat-label">DEPOSITS</div></div>
+          <div class="stat-box"><div class="stat-value" id="s-wd">₹0</div><div class="stat-label">WITHDRAWN</div></div>
+        </div>
+        <div id="txn-ledger">
+          <div class="ledger-placeholder">
+            ◈ No transactions yet…<br><br>
+            Login and perform operations<br>
+            to see the live ledger here.
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /wrapper -->
+
+<!-- STATUS BAR -->
+<div class="status-bar">
+  <span class="status-item"><span class="dot-ok">●</span> DB CONNECTED</span>
+  <span class="status-item"><span class="dot-ok">●</span> ENCRYPTION ON</span>
+  <span class="status-item"><span class="dot-warn">●</span> ATM CASH: ₹4,95,000</span>
+  <span class="status-item"><span class="dot-ok">●</span> NETWORK OK</span>
+  <span class="status-item"><span class="dot-ok">●</span> DEMO MODE (no backend needed)</span>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     JAVASCRIPT — In-memory DB + Full ATM Logic
+     (Replace fetch() calls with real API calls when
+      backend is running at localhost:3001)
+══════════════════════════════════════════════════ -->
+<script>
+// ── CONFIG ───────────────────────────────────────
+// When backend is running, set USE_REAL_API = true
+// and all calls will hit http://localhost:3001/api/*
+const USE_REAL_API = false;
+const API_BASE     = 'http://localhost:3001/api';
+
+// ── IN-MEMORY DATABASE ───────────────────────────
+// Mirrors the MySQL schema exactly
+const MDB = {
+  customers: [
+    { customer_id:1, full_name:'Alice Johnson' },
+    { customer_id:2, full_name:'Bob Smith'     },
+    { customer_id:3, full_name:'Carol White'   },
+  ],
+  accounts: [
+    { account_id:1, customer_id:1, account_number:'1234567890123456', account_type:'Savings',  balance:50000, pin:'1234', is_active:true },
+    { account_id:2, customer_id:2, account_number:'2345678901234567', account_type:'Checking', balance:25000, pin:'5678', is_active:true },
+    { account_id:3, customer_id:3, account_number:'3456789012345678', account_type:'Current',  balance:75000, pin:'9012', is_active:true },
+  ],
+  transactions: [],
+  atm: { atm_id:1, location:'Main Branch', cash_available:495000 },
+};
+
+let txnSeq = 1;
+
+// ── SESSION ───────────────────────────────────────
+let SESSION = { token: null, account_id: null, account: null, customer: null };
+
+// ── STATS ─────────────────────────────────────────
+let STATS = { total:0, vol:0, dep:0, wd:0 };
+
+// ── SQL COUNTER ───────────────────────────────────
+let sqlCount = 0;
+
+// ═══════════════════════════════════════════════
+//  API LAYER — swap between demo and real backend
+// ═══════════════════════════════════════════════
+const API = {
+  async login(account_number, pin) {
+    if (USE_REAL_API) {
+      const r = await fetch(`${API_BASE}/login`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ account_number, pin })
+      });
+      return r.json();
+    }
+    // Demo mode
+    await wait(350);
+    logSQL('SELECT',
+`SELECT a.account_id, a.account_number, a.account_type,
+       a.balance, c.full_name
+FROM   accounts  a
+JOIN   customers c ON a.customer_id = c.customer_id
+WHERE  a.account_number = '${account_number}'
+  AND  a.pin_hash       = SHA2('${pin}', 256)
+  AND  a.is_active      = 1;`, '');
+    const acc = MDB.accounts.find(a => a.account_number === account_number && a.pin === pin && a.is_active);
+    if (!acc) {
+      logResult('err', '0 rows returned — auth failed');
+      return { error: 'Invalid account number or PIN.' };
+    }
+    const cust = MDB.customers.find(c => c.customer_id === acc.customer_id);
+    logResult('ok', `1 row — ${cust.full_name} authenticated ✓`);
+    logSQL('INSERT',
+`INSERT INTO sessions (account_id, token, expires_at)
+VALUES (${acc.account_id}, '<jwt_token>', NOW() + INTERVAL 30 MINUTE);`,
+      'Session created');
+    return { token:'demo_token', name:cust.full_name, account_type:acc.account_type,
+             account_number:acc.account_number, balance:acc.balance, account_id:acc.account_id };
+  },
+
+  async balance(account_id) {
+    if (USE_REAL_API) {
+      const r = await fetch(`${API_BASE}/balance`, { headers:{ Authorization:`Bearer ${SESSION.token}` } });
+      return r.json();
+    }
+    await wait(200);
+    const acc  = MDB.accounts.find(a => a.account_id === account_id);
+    const cust = MDB.customers.find(c => c.customer_id === acc.customer_id);
+    logSQL('SELECT',
+`SELECT a.balance, a.account_type, a.account_number, c.full_name
+FROM   accounts  a
+JOIN   customers c ON a.customer_id = c.customer_id
+WHERE  a.account_id = ${account_id};`,
+      `balance = ₹${fmt(acc.balance)}, type = ${acc.account_type}`);
+    return { balance:acc.balance, account_type:acc.account_type, account_number:acc.account_number, full_name:cust.full_name };
+  },
+
+  async withdraw(account_id, amount) {
+    if (USE_REAL_API) {
+      const r = await fetch(`${API_BASE}/withdraw`, {
+        method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${SESSION.token}`},
+        body:JSON.stringify({ amount, atm_id:1 })
+      });
+      return r.json();
+    }
+    await wait(200);
+    const acc = MDB.accounts.find(a => a.account_id === account_id);
+    logSQL('BEGIN', 'START TRANSACTION;', 'Transaction started');
+    await wait(150);
+    logSQL('SELECT',
+`SELECT balance FROM accounts
+WHERE  account_id = ${account_id} FOR UPDATE;`,
+      `balance = ₹${fmt(acc.balance)} (row locked)`);
+    await wait(150);
+    if (acc.balance < amount) {
+      logSQL('ROLLBACK','ROLLBACK;','Rolled back — insufficient balance', true);
+      return { error:`Insufficient balance. Available: ₹${fmt(acc.balance)}` };
+    }
+    if (MDB.atm.cash_available < amount) {
+      logSQL('ROLLBACK','ROLLBACK;','Rolled back — ATM out of cash', true);
+      return { error:'ATM has insufficient cash.' };
+    }
+    acc.balance -= amount;
+    MDB.atm.cash_available -= amount;
+    logSQL('UPDATE',
+`UPDATE accounts
+SET    balance = balance - ${amount}
+WHERE  account_id = ${account_id};`,
+      `1 row affected — new balance: ₹${fmt(acc.balance)}`);
+    logSQL('UPDATE',
+`UPDATE atm_machines
+SET    cash_available = cash_available - ${amount}
+WHERE  atm_id = 1;`,
+      `ATM cash: ₹${fmt(MDB.atm.cash_available)}`);
+    const txn = recordTxn(account_id, 'withdrawal', amount, acc.balance);
+    logSQL('INSERT',
+`INSERT INTO transactions
+  (account_id, atm_id, txn_type, amount, balance_after)
+VALUES (${account_id}, 1, 'withdrawal', ${amount}, ${acc.balance});`,
+      `txn_id = ${txn.txn_id} recorded`);
+    logSQL('COMMIT','COMMIT;','Transaction committed ✓');
+    return { success:true, withdrawn:amount, new_balance:acc.balance };
+  },
+
+  async deposit(account_id, amount) {
+    if (USE_REAL_API) {
+      const r = await fetch(`${API_BASE}/deposit`, {
+        method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${SESSION.token}`},
+        body:JSON.stringify({ amount, atm_id:1 })
+      });
+      return r.json();
+    }
+    await wait(200);
+    const acc = MDB.accounts.find(a => a.account_id === account_id);
+    logSQL('BEGIN','START TRANSACTION;','Transaction started');
+    await wait(150);
+    acc.balance += amount;
+    logSQL('UPDATE',
+`UPDATE accounts
+SET    balance = balance + ${amount}
+WHERE  account_id = ${account_id};`,
+      `1 row affected — new balance: ₹${fmt(acc.balance)}`);
+    const txn = recordTxn(account_id, 'deposit', amount, acc.balance);
+    logSQL('INSERT',
+`INSERT INTO transactions
+  (account_id, atm_id, txn_type, amount, balance_after)
+VALUES (${account_id}, 1, 'deposit', ${amount}, ${acc.balance});`,
+      `txn_id = ${txn.txn_id} recorded`);
+    logSQL('COMMIT','COMMIT;','Transaction committed ✓');
+    return { success:true, deposited:amount, new_balance:acc.balance };
+  },
+
+  async transfer(account_id, to_account_number, amount) {
+    if (USE_REAL_API) {
+      const r = await fetch(`${API_BASE}/transfer`, {
+        method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${SESSION.token}`},
+        body:JSON.stringify({ to_account_number, amount })
+      });
+      return r.json();
+    }
+    await wait(200);
+    logSQL('BEGIN','START TRANSACTION;','Transaction started');
+    await wait(150);
+    logSQL('SELECT',
+`SELECT account_id, balance
+FROM   accounts
+WHERE  account_number = '${to_account_number}'
+  AND  is_active = 1 FOR UPDATE;`, '');
+    await wait(200);
+    const toAcc = MDB.accounts.find(a => a.account_number === to_account_number && a.is_active);
+    if (!toAcc) {
+      logSQL('ROLLBACK','ROLLBACK;','Recipient not found', true);
+      return { error:'Recipient account not found.' };
+    }
+    if (toAcc.account_id === account_id) {
+      logSQL('ROLLBACK','ROLLBACK;','Cannot self-transfer', true);
+      return { error:'Cannot transfer to same account.' };
+    }
+    const fromAcc = MDB.accounts.find(a => a.account_id === account_id);
+    logResult('ok', `Recipient found: account_id=${toAcc.account_id}`);
+    if (fromAcc.balance < amount) {
+      logSQL('ROLLBACK','ROLLBACK;','Insufficient balance — rolled back', true);
+      return { error:`Insufficient balance. Available: ₹${fmt(fromAcc.balance)}` };
+    }
+    fromAcc.balance -= amount;
+    toAcc.balance   += amount;
+    logSQL('UPDATE',
+`UPDATE accounts SET balance = balance - ${amount}
+WHERE  account_id = ${account_id};`,
+      `Sender new balance: ₹${fmt(fromAcc.balance)}`);
+    logSQL('UPDATE',
+`UPDATE accounts SET balance = balance + ${amount}
+WHERE  account_id = ${toAcc.account_id};`,
+      `Recipient new balance: ₹${fmt(toAcc.balance)}`);
+    const txn = recordTxn(account_id, 'transfer', amount, fromAcc.balance, toAcc.account_id);
+    logSQL('INSERT',
+`INSERT INTO transactions
+  (account_id, txn_type, amount, balance_after, to_account_id)
+VALUES (${account_id}, 'transfer', ${amount}, ${fromAcc.balance}, ${toAcc.account_id});`,
+      `txn_id = ${txn.txn_id} recorded`);
+    logSQL('COMMIT','COMMIT;','Transfer committed ✓');
+    const toCust = MDB.customers.find(c => c.customer_id === toAcc.customer_id);
+    return { success:true, transferred:amount, new_balance:fromAcc.balance, recipient:toCust.full_name };
+  },
+
+  async history(account_id) {
+    if (USE_REAL_API) {
+      const r = await fetch(`${API_BASE}/history?limit=10`, { headers:{ Authorization:`Bearer ${SESSION.token}` } });
+      return r.json();
+    }
+    await wait(200);
+    logSQL('SELECT',
+`SELECT t.txn_id, t.txn_type, t.amount, t.balance_after,
+       t.status, t.txn_date, m.location
+FROM   transactions  t
+LEFT JOIN atm_machines m ON t.atm_id = m.atm_id
+WHERE  t.account_id = ${account_id}
+ORDER  BY t.txn_date DESC LIMIT 10;`, '');
+    const txns = MDB.transactions.filter(t => t.account_id === account_id).slice().reverse();
+    logResult('ok', `${txns.length} rows returned`);
+    return txns;
+  },
+
+  async changePin(account_id, old_pin, new_pin) {
+    if (USE_REAL_API) {
+      const r = await fetch(`${API_BASE}/change-pin`, {
+        method:'PUT', headers:{'Content-Type':'application/json','Authorization':`Bearer ${SESSION.token}`},
+        body:JSON.stringify({ old_pin, new_pin })
+      });
+      return r.json();
+    }
+    await wait(250);
+    const acc = MDB.accounts.find(a => a.account_id === account_id);
+    logSQL('SELECT',
+`SELECT account_id FROM accounts
+WHERE  account_id = ${account_id}
+  AND  pin_hash   = SHA2('${old_pin}', 256);`, '');
+    if (acc.pin !== old_pin) {
+      logResult('err','0 rows — PIN mismatch');
+      return { error:'Incorrect current PIN.' };
+    }
+    logResult('ok','1 row — PIN verified ✓');
+    acc.pin = new_pin;
+    logSQL('UPDATE',
+`UPDATE accounts
+SET    pin_hash = SHA2('${new_pin}', 256)
+WHERE  account_id = ${account_id}
+  AND  pin_hash   = SHA2('${old_pin}', 256);`,
+      '1 row affected — PIN updated ✓');
+    return { success:true, message:'PIN changed successfully.' };
+  },
+};
+
+// ═══════════════════════════════════════════════
+//  UI CONTROLLERS
+// ═══════════════════════════════════════════════
+function show(name) {
+  document.querySelectorAll('.screen-section').forEach(s => s.classList.remove('active'));
+  document.getElementById('s-' + name).classList.add('active');
+  clearMsgs();
+  if (name === 'balance') loadBalance();
+  if (name === 'history') loadHistory();
+}
+
+function clearMsgs() {
+  ['msg-login','msg-wd','msg-dep','msg-tr','msg-pin'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '';
+  });
+}
+
+function msg(id, text, type = 'info') {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = `<div class="msg msg-${type}">${text}</div>`;
+  setTimeout(() => { if (el) el.innerHTML = ''; }, 6000);
+}
+
+function setVal(id, val) { document.getElementById(id).value = val; }
+
+// ── LOGIN ──
+async function doLogin() {
+  const acc = document.getElementById('inp-acc').value.trim();
+  const pin = document.getElementById('inp-pin').value.trim();
+  if (!acc || !pin) return msg('msg-login','Enter account number and PIN.','error');
+
+  const data = await API.login(acc, pin);
+  if (data.error) return msg('msg-login', '✕ ' + data.error, 'error');
+
+  SESSION = { token: data.token, account_id: data.account_id || data.account_id, account: data };
+
+  // Update topbar
+  document.getElementById('topbar-user').textContent = '▸ ' + data.name;
+  document.getElementById('topbar-user').style.display = 'inline';
+
+  // Update user bar
+  document.getElementById('ub-name').textContent = data.name.split(' ')[0];
+  document.getElementById('ub-bal').textContent  = '₹' + fmt(data.balance);
+  document.getElementById('user-bar').classList.add('show');
+
+  // Find account_id in demo mode
+  if (!USE_REAL_API) {
+    const found = MDB.accounts.find(a => a.account_number === acc);
+    SESSION.account_id = found.account_id;
+  }
+
+  show('menu');
+}
+
+// ── BALANCE ──
+async function loadBalance() {
+  const data = await API.balance(SESSION.account_id);
+  if (data.error) return;
+  document.getElementById('bal-amount').textContent = '₹ ' + fmt(data.balance);
+  document.getElementById('bal-type').textContent   = data.account_type.toUpperCase() + ' ACCOUNT';
+  document.getElementById('bal-accno').textContent  = 'ACC NO: ' + data.account_number;
+  updateUserBar(data.balance);
+}
+
+// ── WITHDRAW ──
+async function doWithdraw() {
+  const amount = parseFloat(document.getElementById('wd-amt').value);
+  if (!amount || amount <= 0)   return msg('msg-wd','Enter a valid amount.','error');
+  if (amount > 20000)           return msg('msg-wd','Max withdrawal: ₹20,000 per transaction.','error');
+  if (amount % 100 !== 0)       return msg('msg-wd','Amount must be a multiple of ₹100.','error');
+
+  const data = await API.withdraw(SESSION.account_id, amount);
+  if (data.error) return msg('msg-wd', '✕ ' + data.error, 'error');
+
+  addLedgerEntry('withdrawal', amount, data.new_balance);
+  updateUserBar(data.new_balance);
+  msg('msg-wd', `✓ ₹${fmt(amount)} dispensed successfully! New balance: ₹${fmt(data.new_balance)}`, 'success');
+  document.getElementById('wd-amt').value = '';
+}
+
+// ── DEPOSIT ──
+async function doDeposit() {
+  const amount = parseFloat(document.getElementById('dep-amt').value);
+  if (!amount || amount <= 0) return msg('msg-dep','Enter a valid amount.','error');
+  if (amount > 200000)        return msg('msg-dep','Max deposit: ₹2,00,000 per transaction.','error');
+
+  const data = await API.deposit(SESSION.account_id, amount);
+  if (data.error) return msg('msg-dep', '✕ ' + data.error, 'error');
+
+  addLedgerEntry('deposit', amount, data.new_balance);
+  updateUserBar(data.new_balance);
+  msg('msg-dep', `✓ ₹${fmt(amount)} deposited! New balance: ₹${fmt(data.new_balance)}`, 'success');
+  document.getElementById('dep-amt').value = '';
+}
+
+// ── TRANSFER ──
+async function doTransfer() {
+  const toAcc = document.getElementById('tr-to').value.trim();
+  const amount = parseFloat(document.getElementById('tr-amt').value);
+  if (!toAcc)                return msg('msg-tr','Enter recipient account number.','error');
+  if (!amount || amount <= 0) return msg('msg-tr','Enter a valid amount.','error');
+
+  const data = await API.transfer(SESSION.account_id, toAcc, amount);
+  if (data.error) return msg('msg-tr', '✕ ' + data.error, 'error');
+
+  addLedgerEntry('transfer', amount, data.new_balance);
+  updateUserBar(data.new_balance);
+  msg('msg-tr', `✓ ₹${fmt(amount)} transferred to ${data.recipient}! Balance: ₹${fmt(data.new_balance)}`, 'success');
+  document.getElementById('tr-to').value  = '';
+  document.getElementById('tr-amt').value = '';
+}
+
+// ── HISTORY ──
+async function loadHistory() {
+  const list = document.getElementById('hist-list');
+  list.innerHTML = '<div class="hint">Loading…</div>';
+  const txns = await API.history(SESSION.account_id);
+
+  if (!Array.isArray(txns) || !txns.length) {
+    list.innerHTML = '<div class="hint">No transactions yet.</div>';
+    return;
+  }
+
+  list.innerHTML = txns.map(t => {
+    const isCr = t.txn_type === 'deposit';
+    const clr  = isCr ? 'amt-cr' : 'amt-dr';
+    const sign = isCr ? '+' : '−';
+    return `<div class="hist-row">
+      <div>
+        <div class="hist-type">${t.txn_type}</div>
+        <div class="hist-date">${new Date(t.txn_date).toLocaleString()}</div>
+      </div>
+      <div class="hist-amt ${clr}">${sign}₹${fmt(t.amount)}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── CHANGE PIN ──
+async function doChangePin() {
+  const old_pin = document.getElementById('pin-old').value.trim();
+  const new_pin = document.getElementById('pin-new').value.trim();
+  if (!old_pin || !new_pin) return msg('msg-pin','Enter both PINs.','error');
+  if (new_pin.length < 4)   return msg('msg-pin','New PIN must be at least 4 digits.','error');
+  if (!/^\d+$/.test(new_pin)) return msg('msg-pin','PIN must be digits only.','error');
+
+  const data = await API.changePin(SESSION.account_id, old_pin, new_pin);
+  if (data.error) return msg('msg-pin', '✕ ' + data.error, 'error');
+
+  if (!USE_REAL_API) {
+    const acc = MDB.accounts.find(a => a.account_id === SESSION.account_id);
+    if (acc) acc.pin = new_pin;
+  }
+
+  msg('msg-pin','✓ PIN changed successfully!','success');
+  document.getElementById('pin-old').value = '';
+  document.getElementById('pin-new').value = '';
+}
+
+// ── LOGOUT ──
+function doLogout() {
+  logSQL('UPDATE',
+`UPDATE sessions SET is_active = 0
+WHERE  account_id = ${SESSION.account_id};`,
+    'Session terminated');
+  SESSION = { token:null, account_id:null, account:null, customer:null };
+  document.getElementById('user-bar').classList.remove('show');
+  document.getElementById('topbar-user').style.display = 'none';
+  document.getElementById('inp-acc').value = '';
+  document.getElementById('inp-pin').value = '';
+  show('login');
+}
+
+// ═══════════════════════════════════════════════
+//  LEDGER + SQL LOG HELPERS
+// ═══════════════════════════════════════════════
+function addLedgerEntry(type, amount, balAfter) {
+  STATS.total++;
+  STATS.vol += amount;
+  if (type === 'deposit')    STATS.dep += amount;
+  if (type === 'withdrawal') STATS.wd  += amount;
+
+  document.getElementById('s-total').textContent = STATS.total;
+  document.getElementById('s-vol').textContent   = '₹' + fmtK(STATS.vol);
+  document.getElementById('s-dep').textContent   = '₹' + fmtK(STATS.dep);
+  document.getElementById('s-wd').textContent    = '₹' + fmtK(STATS.wd);
+  document.getElementById('txn-count').textContent = STATS.total + ' TXN';
+
+  const ledger = document.getElementById('txn-ledger');
+  const ph = ledger.querySelector('.ledger-placeholder');
+  if (ph) ph.remove();
+
+  const isCr = type === 'deposit';
+  const card  = document.createElement('div');
+  card.className = 'txn-card';
+  card.innerHTML = `
+    <div class="txn-left">
+      <div class="txn-type">${type}</div>
+      <div class="txn-meta">${new Date().toLocaleTimeString()}</div>
+      <div class="txn-status">✓ SUCCESS</div>
+    </div>
+    <div class="txn-right">
+      <div class="txn-amount ${isCr ? 'amt-cr' : 'amt-dr'}">${isCr ? '+' : '−'}₹${fmt(amount)}</div>
+      <div class="txn-balance">BAL ₹${fmt(balAfter)}</div>
+    </div>`;
+  ledger.insertBefore(card, ledger.firstChild);
+}
+
+function updateUserBar(balance) {
+  document.getElementById('ub-bal').textContent = '₹' + fmt(balance);
+  if (SESSION.account) SESSION.account.balance = balance;
+  // Update demo account too
+  if (!USE_REAL_API) {
+    const acc = MDB.accounts.find(a => a.account_id === SESSION.account_id);
+    if (acc) acc.balance = balance;
+  }
+}
+
+function recordTxn(account_id, type, amount, balance, toId = null) {
+  const txn = { txn_id: txnSeq++, account_id, txn_type: type, amount, balance_after: balance, to_account_id: toId, status:'success', txn_date: new Date().toISOString() };
+  MDB.transactions.push(txn);
+  return txn;
+}
+
+// SQL LOG
+let lastResultEl = null;
+
+function logSQL(type, query, result, isError = false) {
+  sqlCount++;
+  document.getElementById('sql-count').textContent = sqlCount + ' QUERIES';
+
+  const log = document.getElementById('sql-log');
+  const ph  = log.querySelector('.sql-placeholder');
+  if (ph) ph.remove();
+
+  const el  = document.createElement('div');
+  el.className = 'sql-entry';
+  const badgeClass = 'op-' + type;
+  el.innerHTML = `
+    <span class="sql-op-badge ${badgeClass}">${type}</span>
+    <div class="sql-code-block">${escHtml(query)}</div>
+    ${result ? `<div class="sql-result ${isError?'err':'ok'}">→ ${result}</div>` : '<div class="sql-result inf" id="sql-last-result"></div>'}`;
+  log.insertBefore(el, log.firstChild);
+
+  lastResultEl = result ? null : el.querySelector('#sql-last-result');
+}
+
+function logResult(type, text) {
+  if (lastResultEl) { lastResultEl.className = `sql-result ${type}`; lastResultEl.textContent = '→ ' + text; lastResultEl = null; }
+}
+
+// ═══════════════════════════════════════════════
+//  UTILS
+// ═══════════════════════════════════════════════
+function fmt(n)  { return Number(n).toLocaleString('en-IN', {minimumFractionDigits:0,maximumFractionDigits:0}); }
+function fmtK(n) { return n >= 100000 ? (n/100000).toFixed(1)+'L' : n >= 1000 ? (n/1000).toFixed(0)+'K' : fmt(n); }
+function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
+function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// Clock
+setInterval(() => {
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString();
+}, 1000);
+
+// Enter key on login
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('s-login').classList.contains('active')) doLogin();
+});
+
+// Boot log
+setTimeout(() => {
+  logSQL('SELECT',
+`SELECT atm_id, location, cash_available, is_online
+FROM   atm_machines WHERE atm_id = 1;`,
+    'ATM-001 ONLINE · cash = ₹4,95,000');
+  logSQL('SELECT',
+`SELECT COUNT(*) FROM accounts WHERE is_active = 1;`,
+    '3 active accounts loaded');
+}, 600);
+</script>
+</body>
+</html>
