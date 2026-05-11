@@ -1,0 +1,27 @@
+body{
+  background:#0b1c26;
+  font-family:Arial;
+  color:#00ffc3;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
+}
+.card{
+  width:320px;
+  background:#102a36;
+  padding:25px;
+  border-radius:15px;
+  box-shadow:0 0 25px #00ffc3;
+  text-align:center;
+}
+input,button{
+  width:100%;
+  padding:10px;
+  margin:8px 0;
+  border:none;
+  border-radius:5px;
+}
+input{background:#0b1c26;color:white;border:1px solid #00ffc3;}
+button{background:#00ffc3;color:black;font-weight:bold;cursor:pointer;}
+a{color:#00ffc3;text-decoration:none;display:block;margin-top:10px;}
